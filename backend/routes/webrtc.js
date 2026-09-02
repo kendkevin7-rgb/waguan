@@ -5,16 +5,22 @@ const router = express.Router();
 
 // GET /api/webrtc/config
 // Returns ICE server configuration for RTCPeerConnection.
-// In a real deployment TURN would be a paid relay; the STUN list below is
-// sufficient for same-LAN/localhost testing (typical for this app).
+// STUN alone is enough for same-LAN/localhost testing. Add a TURN relay via
+// the TURN_URL / TURN_USER / TURN_CREDENTIAL env vars to make calls through
+// different NATs (cross-network) reliable.
 router.get('/config', authMiddleware, (req, res) => {
-  res.json({
-    iceServers: [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-    ],
-    // Add TURN here (username/credential) for NAT traversal across WAN.
-  });
+  const iceServers = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+  ];
+  if (process.env.TURN_URL) {
+    iceServers.push({
+      urls: process.env.TURN_URL,
+      username: process.env.TURN_USER || '',
+      credential: process.env.TURN_CREDENTIAL || '',
+    });
+  }
+  res.json({ iceServers });
 });
 
 module.exports = router;

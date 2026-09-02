@@ -52,6 +52,23 @@ export class Call {
       this.remoteStream.addTrack(e.track);
       this._emit('remoteStream', this.remoteStream);
     };
+    // The call is only truly "ongoing" when the media transport is up. SDP
+    // exchange alone (offer/answer) says nothing about whether ICE actually
+    // connected — without this check the timer ran even when no audio/video
+    // could flow (e.g. media blocked or ICE still handshaking).
+    this.pc.onconnectionstatechange = () => {
+      if (this._ended) return;
+      const cs = this.pc.connectionState;
+      if (cs === 'connected') {
+        if (this.status !== 'ongoing') {
+          if (!this.startedAt) this.startedAt = Date.now();
+          this.status = 'ongoing';
+          this._emit('state', this.status);
+        }
+      } else if ((cs === 'failed' || cs === 'disconnected') && this.status !== 'ended' && this.status !== 'ongoing') {
+        this.fail('Could not establish the call connection');
+      }
+    };
   }
 
   async _getLocalStream(video) {
@@ -111,8 +128,9 @@ export class Call {
     if (this._ended) return;
     await this.pc.setRemoteDescription(new RTCSessionDescription(sdp));
     this._flushIce();
-    if (!this.acceptedAt) { this.acceptedAt = Date.now(); this.startedAt = Date.now(); }
-    this.status = 'ongoing';
+    // Don't declare the call started here — wait for the ICE/media transport
+    // to actually connect (onconnectionstatechange sets 'ongoing' + timer).
+    this.status = 'connecting';
     this._emit('state', this.status);
   }
 
@@ -131,8 +149,9 @@ export class Call {
     await this.pc.setLocalDescription(answer);
     this._flushIce();
     getSocket().emit('call:answer', { to: this.peerUserId, sdp: this.pc.localDescription, callId: this.callId });
-    if (!this.acceptedAt) { this.acceptedAt = Date.now(); this.startedAt = Date.now(); }
-    this.status = 'ongoing';
+    // Same as handleAnswer: the call becomes ongoing only when the media
+    // transport connects.
+    this.status = 'connecting';
     this._emit('state', this.status);
   }
 

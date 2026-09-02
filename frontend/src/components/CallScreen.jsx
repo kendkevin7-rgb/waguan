@@ -100,7 +100,19 @@ export default function CallScreen({ call, onEnd, displayName }) {
     : 'Call ended';
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#0b141a] text-white flex flex-col">
+    <div className="fixed inset-0 z-50 bg-[#0b141a] text-white flex flex-col items-center">
+      {/* Voice calls carry no video tracks; without an <audio> element the
+          remote stream is never actually played, so the receiver hears
+          nothing even though the call appears connected. Binding the remote
+          stream to a persistent <audio> element fixes voice playback. */}
+      {remoteStream && remoteStream.getVideoTracks().length === 0 && (
+        <audio autoPlay playsInline ref={(el) => { if (el) el.srcObject = remoteStream; }} />
+      )}
+
+      {/* Fixed-width, centered app frame so the call layout looks identical
+          across phones, tablets, and desktops instead of stretching to the
+          full viewport width. */}
+      <div className="w-full max-w-[420px] h-full flex flex-col">
       {/* Remote video */}
       <div className="flex-1 relative overflow-hidden">
         {remoteStream && remoteStream.getVideoTracks().length > 0 ? (
@@ -175,6 +187,7 @@ export default function CallScreen({ call, onEnd, displayName }) {
         <button onClick={onEnd} className="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center" title="End call">
           <IconHangup className="w-[28px] h-[28px]" />
         </button>
+      </div>
       </div>
     </div>
   );
